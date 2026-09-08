@@ -1,11 +1,11 @@
 name: Run Android Emulator in GitHub Actions
 
 on:
-  workflow_dispatch: يدوياً من زرار في جيت هب
+  workflow_dispatch: # بيخليك تشغل الـ Workflow يدوياً من زرار في جيت هب
 
 jobs:
   run-emulator:
-    runs-on: macos-latest جاهز
+    runs-on: macos-latest # الـ macOS ممتاز وسهل جداً لتشغيل المحاكي لأنه بيدعم Virtualization جاهز
 
     steps:
       - name: Checkout code
@@ -26,7 +26,7 @@ jobs:
           arch: x86_64
           force-avd-creation: false
           disable-animations: true
-          
+          # الـ script ده بيشتغل أول ما المحاكي يفتح، تقدر تحط فيه الأوامر اللي عايزها
           script: |
             echo "Android Emulator is up and running successfully!"
             adb shell input keyevent 82 # بيعمل Unlock للشاشة لو قفلة
