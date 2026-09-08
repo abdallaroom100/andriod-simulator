@@ -1,44 +1,55 @@
-name: Run Android Emulator in GitHub Actions
+name: Android Emulator Remote (scrcpy)
 
 on:
   workflow_dispatch:
+    inputs:
+      duration:
+        description: 'مدة التشغيل بالساعات (الحد الأقصى 6)'
+        required: true
+        default: '6'
+      api_level:
+        description: 'إصدار أندرويد (API level)'
+        required: true
+        default: '30'
 
 jobs:
-  run-emulator:
-    runs-on: macos-latest
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # أقصى حد 6 ساعات
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
-      - name: Run Android Emulator
+      - name: Start Android Emulator and expose ADB
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: ${{ github.event.inputs.api_level }}
           target: google_apis
           arch: x86_64
-          profile: Nexus 6
-          force-avd-creation: false
-          disable-animations: false
-          # هنا زودنا الوقت اللي بنستناه عشان المحاكي يقوم براحته
-          ram-size: 2048M
-          cpu-cores: 2
+          profile: pixel_4
+          force-avd-creation: true
+          emulator-options: -no-window -no-boot-anim -no-audio -gpu swiftshader_indirect -no-snapshot -no-metrics
           script: |
-            echo "Waiting for emulator to fully boot up..."
-            # أمر ذكي يخلي الـ script يلف و يستنى لحد ما الـ boot يخلص فعلاً
-            adb wait-for-device
-            
-            # حلقة تكرارية تستنى لحد ما الـ boot_completed تدي 1
-            while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ]; do
-              echo "Still booting..."
-              sleep 5
-            done
-            
-            echo "Emulator is fully booted and ready!"
-            adb shell input keyevent 82
+            # تفعيل ADB عبر TCP
+            adb tcpip 5555
+
+            # تحميل ngrok وعمل نفق TCP للمنفذ 5555
+            wget -qO ngrok.tgz https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.tgz
+            tar xf ngrok.tgz
+            ./ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+            ./ngrok tcp 5555 --log=stdout > ngrok.log 2>&1 &
+            sleep 10
+
+            # طباعة عنوان الاتصال
+            echo "🔗 عنوان ADB (استخدمه مع scrcpy أو adb connect):"
+            curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[^"]*'
+
+            # إبقاء المحاكي شغالاً للمدة المحددة
+            sleep $(( ${{ github.event.inputs.duration }} * 3600 ))
