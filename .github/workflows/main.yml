@@ -1,33 +1,44 @@
 name: Run Android Emulator in GitHub Actions
 
 on:
-  workflow_dispatch: # بيخليك تشغل الـ Workflow يدوياً من زرار في جيت هب
+  workflow_dispatch:
 
 jobs:
   run-emulator:
-    runs-on: macos-latest # الـ macOS ممتاز وسهل جداً لتشغيل المحاكي لأنه بيدعم Virtualization جاهز
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable KVM / Hardware Acceleration (if Linux)
-        if: runner.os == 'Linux'
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: run-android-emulator
+      - name: Run Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29 # تقدر تغير رقم الإصدار زي 30 أو 33 حسب ما تحب
+          api-level: 29
           target: google_apis
           arch: x86_64
+          profile: Nexus 6
           force-avd-creation: false
-          disable-animations: true
-          # الـ script ده بيشتغل أول ما المحاكي يفتح، تقدر تحط فيه الأوامر اللي عايزها
+          disable-animations: false
+          # هنا زودنا الوقت اللي بنستناه عشان المحاكي يقوم براحته
+          ram-size: 2048M
+          cpu-cores: 2
           script: |
-            echo "Android Emulator is up and running successfully!"
-            adb shell input keyevent 82 # بيعمل Unlock للشاشة لو قفلة
-            sleep 30 # سيبه شغال شوية قبل ما يقفل لو حابب تختبر حاجه
+            echo "Waiting for emulator to fully boot up..."
+            # أمر ذكي يخلي الـ script يلف و يستنى لحد ما الـ boot يخلص فعلاً
+            adb wait-for-device
+            
+            # حلقة تكرارية تستنى لحد ما الـ boot_completed تدي 1
+            while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ]; do
+              echo "Still booting..."
+              sleep 5
+            done
+            
+            echo "Emulator is fully booted and ready!"
+            adb shell input keyevent 82
