@@ -1,0 +1,33 @@
+name: Run Android Emulator in GitHub Actions
+
+on:
+  workflow_dispatch: يدوياً من زرار في جيت هب
+
+jobs:
+  run-emulator:
+    runs-on: macos-latest جاهز
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Enable KVM / Hardware Acceleration (if Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: run-android-emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29 # تقدر تغير رقم الإصدار زي 30 أو 33 حسب ما تحب
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          disable-animations: true
+          
+          script: |
+            echo "Android Emulator is up and running successfully!"
+            adb shell input keyevent 82 # بيعمل Unlock للشاشة لو قفلة
+            sleep 30 # سيبه شغال شوية قبل ما يقفل لو حابب تختبر حاجه
